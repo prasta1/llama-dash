@@ -194,9 +194,13 @@ Resolution order inside `selectUpstream()`:
 
 The routing-rule target schema gains a `node` variant carrying `nodeId`.
 `isAllowedDirectUpstream` is untouched: node targets are validated against the
-registry, not against the direct-upstream host allow-list. A rule referencing an
-unknown node id is rejected at write time and treated as non-matching at
-request time.
+registry, not against the direct-upstream host allow-list.
+
+A rule referencing an unknown node id is rejected at write time. If a node is
+later removed from the environment, a stored rule still naming it degrades to
+default dispatch — model index, then primary — rather than failing every matched
+request. It does not become non-matching: re-evaluating rules at that point would
+break the single ordered resolution pass that `CLAUDE.md` requires.
 
 ## Data model
 
