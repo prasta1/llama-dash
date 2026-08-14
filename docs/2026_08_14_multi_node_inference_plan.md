@@ -1255,7 +1255,9 @@ git commit -m "feat(ui): surface node identity across models, system, requests, 
 
 The proxy has no handler for this route today, so clients would see only the primary node's catalog. Models on node 2 stay reachable by name but undiscoverable in any client dropdown.
 
-This is the first `/v1/*` route llama-dash answers rather than relays. **This decision was recorded in the spec but not explicitly confirmed by the user — check before implementing.**
+This is the first `/v1/*` route llama-dash answers rather than relays.
+
+Each returned model reports `owned_by` set to its node's **label**, replacing whatever the upstream sent. `owned_by` is already required on `OpenAiModelSchema` (`src/server/llama-swap/schemas.ts:7`), so no shape changes and no client breaks. Model ids stay bare — prefixed addressable ids were considered and rejected.
 
 **Files:**
 - Create: `src/server/proxy/models-merge.ts`
@@ -1263,8 +1265,10 @@ This is the first `/v1/*` route llama-dash answers rather than relays. **This de
 - Modify: `src/server/proxy/handler.ts`
 
 **Interfaces:**
-- Produces: `mergeNodeModels(results: Array<{ nodeId: string; models: Array<OpenAiModel> } | null>): { object: 'list'; data: Array<OpenAiModel> }`
+- Produces: `mergeNodeModels(results: Array<{ nodeLabel: string; models: Array<OpenAiModel> } | null>): { object: 'list'; data: Array<OpenAiModel> }`
 - Produces: `handleMergedModelsRequest(): Promise<Response>`
+
+Callers pass results in node-priority order. `nodeLabel` (not id) is used because `owned_by` is a human-facing field.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1272,28 +1276,50 @@ This is the first `/v1/*` route llama-dash answers rather than relays. **This de
 import { describe, expect, it } from 'vitest'
 import { mergeNodeModels } from './models-merge'
 
-const model = (id: string) => ({ id, object: 'model' }) as never
+const model = (id: string, ownedBy = 'llama-swap') =>
+  ({ id, object: 'model', created: 0, owned_by: ownedBy }) as never
 
 describe('mergeNodeModels', () => {
   it('concatenates models across nodes', () => {
     const merged = mergeNodeModels([
-      { nodeId: 'gpu-box', models: [model('qwen3')] },
-      { nodeId: 'mac-mini', models: [model('gemma3')] },
+      { nodeLabel: 'gpu-box', models: [model('qwen3')] },
+      { nodeLabel: 'mac-mini', models: [model('gemma3')] },
     ])
     expect(merged.data.map((m) => m.id)).toEqual(['qwen3', 'gemma3'])
     expect(merged.object).toBe('list')
   })
 
-  it('dedupes a model served by both nodes, keeping the first', () => {
+  it('stamps owned_by with the node label', () => {
     const merged = mergeNodeModels([
-      { nodeId: 'gpu-box', models: [model('qwen3')] },
-      { nodeId: 'mac-mini', models: [model('qwen3')] },
+      { nodeLabel: 'gpu-box', models: [model('qwen3')] },
+      { nodeLabel: 'mac-mini', models: [model('gemma3')] },
+    ])
+    expect(merged.data.map((m) => m.owned_by)).toEqual(['gpu-box', 'mac-mini'])
+  })
+
+  it('overwrites whatever owned_by the upstream sent', () => {
+    const merged = mergeNodeModels([{ nodeLabel: 'gpu-box', models: [model('qwen3', 'organization-owner')] }])
+    expect(merged.data[0].owned_by).toBe('gpu-box')
+  })
+
+  it('dedupes a model served by both nodes, keeping the higher-priority node', () => {
+    const merged = mergeNodeModels([
+      { nodeLabel: 'gpu-box', models: [model('qwen3')] },
+      { nodeLabel: 'mac-mini', models: [model('qwen3')] },
     ])
     expect(merged.data).toHaveLength(1)
+    // owned_by names where dispatch will actually send it, not merely where it exists.
+    expect(merged.data[0].owned_by).toBe('gpu-box')
+  })
+
+  it('does not mutate the caller-supplied model objects', () => {
+    const original = model('qwen3', 'llama-swap')
+    mergeNodeModels([{ nodeLabel: 'gpu-box', models: [original] }])
+    expect((original as { owned_by: string }).owned_by).toBe('llama-swap')
   })
 
   it('returns surviving nodes when one failed', () => {
-    const merged = mergeNodeModels([null, { nodeId: 'mac-mini', models: [model('gemma3')] }])
+    const merged = mergeNodeModels([null, { nodeLabel: 'mac-mini', models: [model('gemma3')] }])
     expect(merged.data.map((m) => m.id)).toEqual(['gemma3'])
   })
 
@@ -1310,7 +1336,25 @@ Expected: FAIL — module does not exist.
 
 - [ ] **Step 3: Implement the merge**
 
-Callers pass results in node-priority order, so first-wins dedupe matches how `selectUpstream` breaks ties. `handleMergedModelsRequest()` calls every node's `listModels()` through `Promise.allSettled`, maps rejections to `null`, and passes the array through in priority order.
+First-wins dedupe matches how `selectUpstream` breaks ties, because callers pass results in node-priority order. Copy each model before stamping `owned_by` (`{ ...m, owned_by: nodeLabel }`) — mutating the caller's objects would corrupt any cached upstream response, which the last test guards against.
+
+`handleMergedModelsRequest()` fans out with `Promise.allSettled`, maps rejections to `null`, and passes results in node-priority order.
+
+**Which `listModels` to call.** The backend facade's `listModels()` returns `BackendModel`, which is normalized and has no `owned_by` or `created` — it cannot produce an OpenAI-shaped response. You need the client's `listModels()`, which returns the full `OpenAiModel`. Build one per node from the base URL the registry already exposes:
+
+```ts
+import { createLlamaSwapClient } from '../llama-swap/client.ts'
+import { nodes } from '../inference/registry.ts'
+
+const perNode = await Promise.allSettled(
+  nodes.map(async (node) => ({
+    nodeLabel: node.label,
+    models: (await createLlamaSwapClient(node.backend.info.upstreamBaseUrl).listModels()).data,
+  })),
+)
+```
+
+This names llama-swap directly inside the proxy layer, which the facade normally prevents. It is acceptable here only because a second backend *kind* is an explicit non-goal in the spec. Add a comment saying so, and saying that a second kind would need an optional `listOpenAiModels?()` on the facade instead. Do not add that method now — there is no second kind to justify it.
 
 - [ ] **Step 4: Intercept the route in `handler.ts`**
 

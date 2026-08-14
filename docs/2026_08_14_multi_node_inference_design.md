@@ -256,8 +256,23 @@ design records that deliberately. Consequences:
   populated dropdown is more useful than a failed call, and the System page is
   where node health is reported.
 
-This is the one item the user did not explicitly confirm; it is recorded as a
-decision to be accepted or reversed at spec review.
+### Distinguishing nodes in the merged list
+
+Each returned model reports `owned_by` set to its node's label, replacing
+whatever the upstream sent. `owned_by` is already a required field on
+`OpenAiModelSchema` (`src/server/llama-swap/schemas.ts:7`), so this changes no
+shapes and breaks no clients.
+
+Model ids stay bare. Prefixed, individually addressable ids
+(`mac-mini/qwen3`) were considered and rejected: they would require dispatch to
+strip a prefix, roughly double every dropdown, and reopen the namespacing
+decision already settled against.
+
+For a model served by both nodes, `owned_by` names the node that dispatch will
+actually select — the higher-priority one. The field therefore answers "where
+will this request go?" rather than "where does this model exist?", which is the
+operationally useful question. The dashboard still shows full ownership via the
+`nodes` array on `/api/models`.
 
 ## UI
 
