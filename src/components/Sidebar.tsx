@@ -315,7 +315,10 @@ function SidebarLiveStatus({ initialSession }: SidebarProps) {
         </div>
         <div className="h-1 rounded-pill bg-surface-4 overflow-hidden my-1">
           <div
-            className="h-full bg-accent rounded-pill transition-[width] duration-300"
+            className={cn(
+              'h-full rounded-pill transition-[width] duration-300',
+              hasVram && (gpuCard.memoryPercent ?? 0) >= 85 ? 'bg-warn shadow-[0_0_8px_var(--warn)]' : 'bg-accent',
+            )}
             style={{
               width: hasVram
                 ? `${gpuCard.memoryPercent ?? 0}%`

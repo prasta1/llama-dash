@@ -1,8 +1,9 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Inbox } from 'lucide-react'
 import { useMemo } from 'react'
 import { CopyableCode } from '../../components/CopyableCode'
 import { DurationBar } from '../../components/DurationBar'
+import { EmptyState } from '../../components/EmptyState'
 import { StatusCell } from '../../components/StatusCell'
 import type { ApiRequest } from '../../lib/api'
 import { clickableRowFocusClass, clickableRowProps } from '../../lib/clickable-row-props'
@@ -83,10 +84,10 @@ export function DashboardRecentRequestsPanel({ requests }: Props) {
           </table>
         </div>
       ) : requests.length === 0 ? (
-        <div className="empty-state">
+        <EmptyState icon={Inbox}>
           no requests yet. point clients at{' '}
           <CopyableCode text={`${typeof window !== 'undefined' ? window.location.origin : ''}/v1/`} /> to see them here.
-        </div>
+        </EmptyState>
       ) : (
         <div className="min-h-0 flex-1 overflow-auto">
           <table className="dtable">

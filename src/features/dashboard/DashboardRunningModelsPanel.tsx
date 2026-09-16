@@ -1,5 +1,6 @@
 import { Link, useNavigate } from '@tanstack/react-router'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, Moon } from 'lucide-react'
+import { EmptyState } from '../../components/EmptyState'
 import { StatusDot, stateTone } from '../../components/StatusDot'
 import type { ApiModel } from '../../lib/api'
 import { clickableRowFocusClass, clickableRowProps } from '../../lib/clickable-row-props'
@@ -59,9 +60,9 @@ export function DashboardRunningModelsPanel({ active, total }: Props) {
           </tbody>
         </table>
       ) : active.length === 0 ? (
-        <div className="empty-state">
+        <EmptyState icon={Moon}>
           idle — no models loaded. Hit <code translate="no">/v1/chat/completions</code> to swap one in.
-        </div>
+        </EmptyState>
       ) : (
         <table className="dtable">
           <thead>

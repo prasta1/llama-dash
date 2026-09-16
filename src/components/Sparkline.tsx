@@ -25,10 +25,12 @@ export function Sparkline({
   data,
   height = 40,
   color = 'var(--accent)',
+  showEndpointDot = false,
 }: {
   data: Array<number>
   height?: number
   color?: string
+  showEndpointDot?: boolean
 }) {
   // useId, not a module counter mutated during render — the latter produced
   // different ids on server and client and could not survive hydration.
@@ -86,6 +88,15 @@ export function Sparkline({
       </defs>
       <path d={glowPath} fill={`url(#${id}-glow)`} />
       <path d={linePath} fill="none" stroke={color} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      {showEndpointDot && coords.length > 0 ? (
+        <circle
+          cx={coords[coords.length - 1].x}
+          cy={coords[coords.length - 1].y}
+          r={2.5}
+          fill={color}
+          className="sparkline-endpoint-dot"
+        />
+      ) : null}
     </svg>
   )
 }

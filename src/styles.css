@@ -128,10 +128,14 @@
     @apply overflow-hidden rounded border-border bg-surface-1;
   }
   .panel-head {
-    @apply h-10 flex items-center gap-2.5 border-b border-border bg-surface-1 px-3.5 py-2.5;
+    @apply h-11 flex items-center gap-2.5 border-b border-border bg-surface-1 px-3.5 py-2.5;
   }
   .panel-title {
-    @apply font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-fg-muted;
+    @apply font-mono text-[10px] font-medium uppercase tracking-[0.16em] text-fg-muted inline-flex items-center gap-2;
+  }
+  .panel-title::before {
+    content: '';
+    @apply inline-block size-1 rounded-pill bg-accent opacity-70;
   }
   .panel-sub {
     @apply font-mono text-[11px] text-fg-dim;
@@ -492,12 +496,12 @@
   to   { opacity: 1; transform: scale(1); }
 }
 @keyframes ticker-out {
-  from { transform: translateX(0); opacity: 1; }
-  to   { transform: translateX(100%); opacity: 0; }
+  from { transform: translateX(0); opacity: 1; filter: blur(0); }
+  to   { transform: translateX(60%); opacity: 0; filter: blur(2px); }
 }
 @keyframes ticker-in {
-  from { transform: translateX(-100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
+  from { transform: translateX(-60%); opacity: 0; filter: blur(2px); }
+  to   { transform: translateX(0); opacity: 1; filter: blur(0); }
 }
 .ticker-out { animation: ticker-out 300ms ease-in forwards; }
 .ticker-in  { animation: ticker-in 300ms ease-out; }
@@ -549,6 +553,14 @@
 @keyframes stream-flow {
   from { background-position: 140% 0; }
   to { background-position: -40% 0; }
+}
+
+@keyframes spark-dot-pulse {
+  0%, 100% { r: 2.5; opacity: 0.85; }
+  50% { r: 4; opacity: 1; }
+}
+.sparkline-endpoint-dot {
+  animation: spark-dot-pulse 2.4s var(--ease-in-out) infinite;
 }
 
 @keyframes requests-refresh-ring {
